@@ -1,0 +1,695 @@
+---
+title: "Ad Analysis"
+author: "Bill Robinson, Moringa School"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    df_print: paged
+    theme: readable
+    toc: yes
+    toc_depth: '3'
+    toc_float:
+      collapsed: yes
+  pdf_document:
+    toc: yes
+    toc_depth: '3'
+---
+#**Ad Analysis**
+
+# 1 Defining the Question
+**A Kenyan entrepreneur has created an online cryptography course and would want to advertise it on her blog. She currently targets audiences originating from various countries. In the past, she ran ads to advertise a related course on the same blog and collected data in the process. She would now like to employ your services as a Data Science Consultant**
+
+## 1.1 Specifying the Question
+**Help Customer Identify individuals who are likely to click on ads on client's cryptography course**
+
+## 2.  Defining the Metric of Success
+Come up with an analysis that will make our customer identify individuals who are likely to click on her cryptography course and tailor the courses to the intended individuals
+
+## 3. Understanding the Context
+Effective advertising reaches potential customers and informs them of your products or services. ... Advertising is communication intended to inform, educate, persuade, and remind individuals of your product or businesses. Advertising must work with other marketing tools and business elements to be successful.
+
+## 4. Experimental Design taken
+1. Data Exploration
+2. Data Cleaning and Formatting
+3. Univariate Analysis
+4. Bivariate Analysis
+5. Multivariate Analysis
+6. Implementing the solution through supervised modeling,classification models
+6. Conclusion and Next steps
+
+## 5. Appropriateness data 
+Our data was readily available as it was provided by the client...Thus data collection was not needed
+
+6. ## Data Understanding
+
+## Loading Packages
+
+library("dplyr")
+library("purrr")
+library('tidyverse')
+library('magrittr')
+library('corrplot')
+library('caret')
+library('skimr')
+library(readr)
+
+##Import Dataset
+
+``` {r}
+ad_df<- read.csv("dataset/advertising.csv")
+## previewing first 6 rows
+head(ad_df)
+
+##previewing the last 6 rows of the dataset
+tail(ad_df)
+
+```
+
+``` {r}
+## Previewing the shape of our dataset
+dim(ad_df)
+### we have 1000 rows and 10 columns!!!BAM!!
+
+#checking the datatypes on the columns 
+sapply(ad_df, class)
+ ## Our dataset is comprised of numeric, integer and character datatypes
+
+##checking for structure is using the str()
+str(ad_df)
+
+##the timestamp has  a wrong data type so we will need to convert it to datetime
+ ad_df$Timestamp <- as.POSIXct(ad_df$Timestamp, "%Y-%m-%d %H:%M:%S",tz = "GMT")
+
+ ### Checking if change has been effected
+ sapply(ad_df, class)
+
+## Double bam changes has been effected
+
+##Lets now get a summary of the dataset
+
+
+summary(ad_df)
+
+```
+
+
+
+## 7. Data Cleaning
+``` {R}
+## Converting all columns to lowercase for uniformity purposes
+head(ad_df)
+names(ad_df)<- tolower(names(ad_df))
+head(ad_df) 
+## Double Bam!!! Change has been effected
+
+```
+
+
+``` {R}
+## Its now time to check and deal with missing data in our dataset
+is.na(ad_df)
+## To add more clarity will display missing values  in each column
+colSums(is.na(ad_df))
+## Tripple Bam!!!We have no missing values..This is nice
+
+```
+``` {R}
+## Its now time to check and deal with duplicates data in our dataset
+
+duplicated_rows<- ad_df[duplicated(ad_df),]
+
+duplicated_rows
+## This is awe-inspiring, we also dont have duplicated,,the data collection team should be congratulated
+
+
+```
+
+``` {R}
+## Its now time to check and deal with outliers data in our dataset
+# check which of the columns has numeric data
+
+numeric_cols <- unlist(lapply(ad_df, is.numeric)) 
+
+numeric_cols
+
+
+
+boxplot(numeric_cols)
+## we have a few outliers in the area.column column but we will leave them as the values maybe useful during our analysis
+```
+
+##checking for anomalies
+Anomalies are inconsistenciesin the data and this can be checkedforin many ways. These are rare items, events or observations which raise suspicions by differing significantly from the majority of the data.
+###Checking the number of unique values in each column
+``` {r}
+lengths(lapply(ad_df, unique))
+str(ad_df)
+##I will need to convert some categorical columns into factors for easy analysis
+ad_df$male <- as.factor(ad_df$male)
+
+ad_df$clicked.on.ad <- as.factor(ad_df$clicked.on.ad)
+is.factor(ad_df$male)
+is.factor(ad_df$clicked.on.ad)
+
+##Next I will try and split the timestamp into days, months and years to give us more picture on analysis
+# create a temporary dataframe containing the data
+temporary<- ad_df
+Then extract the year, month, day and hour from the timestamp column
+
+temporary$year <- format(temporary$timestamp, format="%Y")
+temporary$month <- format(temporary$timestamp, format="%m")
+temporary$day <- format(temporary$timestamp, format="%d")
+temporary$hour <- format(temporary$timestamp, format="%H")
+
+str(temporary)
+#convert the new columns created to categorical values(factor)
+temporary$year <- as.factor(temporary$year)
+temporary$month <- as.factor(temporary$month)
+temporary$day <- as.factor(temporary$day)
+temporary$hour <- as.factor(temporary$hour)
+str(temporary)
+```
+
+- The "year" column has only one level;2016. This means the data was collected in the year 2016. 
+
+- The "month" column has 7 levels; months January to July. 
+
+- The "day" column is a factor of 31 levels indicating that the number of days represented are 31. 
+
+- The "hour" column is also a factor of 24 levels indicating the number of hours in a day. 
+
+We can now delete the timestamp column as we do not need it anymore and move the column "clicked_on_add" to the end(make it the last column in the data)
+
+```{r}
+# drop the timestamp column
+temporary$timestamp <- NULL
+colnames(temporary)
+
+
+```
+
+## 9. Univariate Analysis
+
+``` {r}
+## first we will check for the mean of all our numerical columns
+```
+
+
+The daily average time spent on a site was `r mean(temporary$daily.time.spent.on.site)`
+The average age of individuals was `r mean(ad_df$age)`
+The  average of area.income was `r mean(ad_df$area.income)`
+The daily internet usage on a site was `r mean(ad_df$daily.internet.usage)`
+
+## checking for the median of our numerical variables
+
+
+The daily median time spent on a site was `r median(ad_df$daily.time.spent.on.site)`
+The median age of individuals was `r median(ad_df$age)`
+The  median of area.income was `r median(ad_df$area.income)`
+The daily median internet usage on a site was `r median(ad_df$daily.internet.usage)`
+``` {r}
+## we will find the mode using a fuction
+calcmode <- function(v) {
+   uniqv <- unique(v)
+   uniqv[which.max(tabulate(match(v, uniqv)))]
+}
+
+
+daily_mode_time_spent_on_site<- calcmode(ad_df$daily.time.spent.on.site)
+daily_mode_time_spent_on_site
+
+age_mode<- calcmode(ad_df$age)
+age_mode
+
+area_income_mode<- calcmode((ad_df$area.income))
+area_income_mode
+internetusageonasite_mode<- calcmode(ad_df$daily.internet.usage)
+internetusageonasite_mode
+
+```
+
+### Measures of dispersion
+##min 
+
+The daily minimum time spent on a site was `r min(ad_df$daily.time.spent.on.site)`
+
+The minimum age of individuals was `r min(ad_df$age)`
+The  minimum of area.income was `r min(ad_df$area.income)`
+The daily minimum internet usage on a site was `r min(ad_df$daily.internet.usage)`
+
+## max
+
+The daily maximum time spent on a site was `r max(ad_df$daily.time.spent.on.site)`
+The maximum age of individuals was `r max(ad_df$age)`
+The  maximum of area.income was `r max(ad_df$area.income)`
+The daily maximum internet usage on a site was `r max(ad_df$daily.internet.usage)`
+
+## range
+
+The daily range of time spent on a site was `r range(ad_df$daily.time.spent.on.site)`
+The range of age of individuals was `r range(ad_df$age)`
+The  range  of area.income was `r range(ad_df$area.income)`
+The daily range of internet usage on a site was `r range(ad_df$daily.internet.usage)`
+
+## QUantile ratio
+The daily Quantile ratio of time spent on a site was `rquantile(ad_df$daily.time.spent.on.site)`
+The Quantile ratio  of age of individuals was `r quantile(ad_df$age)`
+The  Quantile ratio   of area.income was `r quantile(ad_df$area.income)`
+The daily Quantile ratio  of internet usage on a site was `r quantile(ad_df$daily.internet.usage)`
+
+## Standard Deviation
+
+The daily  of time spent on a site was dispersed away from the mean by `r sd(ad_df$daily.time.spent.on.site)`
+The of age of individuals was dispersed away from the mean by `r sd(ad_df$age)`
+The  quantile ratio   of area.income was dispersed away from the mean by`r sd(ad_df$area.income)`
+The daily quantile ratio  of internet usage on a site was dispersed away from the mean by `r sd(ad_df$daily.internet.usage)`
+
+
+
+## Graphical Plots
+``` {r}
+##lets plot a boxplot of the daily.time.spent.on.site
+boxplot(temporary$daily.time.spent.on.site)
+##from our boxplot the average daily time spent on the site was 65
+
+```
+``` {r}
+##lets plot a bar graph of the frequeny distribution of our age column
+age<- temporary$age
+
+age_frequency<-table(age)
+barplot(age_frequency)
+
+##from our bar plot, individuals at age 33 were many, mininum age was 19 nad maximum age was 61
+```
+
+
+```   {r}
+
+## 10. Bivariate and Multivariate Analysis
+We will investigate the relationship between the target variable("clicked on ad") and the other columns
+
+
+``` {r}
+# how many males and females clicked on ads
+gender_ad <- table(temporary$clicked.on.ad, temporary$male)
+names(dimnames(gender_ad)) <- c("Clicked on Ad?", "Male")
+gender_ad
+ 
+269 females clicked on the add than the male who were 231 in number
+```
+ad clicked per month
+``` {r}
+month_ad <- table(temporary$month, temporary$clicked.on.ad)
+names(dimnames(month_ad)) <- c("Month", "Clicked on Ad?")
+month_ad
+
+More ads were clicked on the month of february and july was the least
+
+```
+
+```{r}
+# ad clicked per day
+day_ad <- table(temporary$day, temporary$clicked.on.ad)
+names(dimnames(day_ad)) <- c("Day", "Clicked on Ad?")
+day_ad
+
+#### More ads were clicked on the 3rd day
+```
+
+```{r}
+# ad clicked per hour
+hour_ad <- table(temporary$hour, temporary$clicked.on.ad)
+
+names(dimnames(hour_ad)) <- c("Hour", "Clicked on Ad?")
+hour_ad
+
+### Most ads were clicked at 9.a.m.
+```
+
+
+```{r}
+# ad clicked per country
+country_ad <- table(temporary$country, temporary$clicked.on.ad)
+names(dimnames(country_ad)) <- c("Country", "Clicked on Ad")
+country_ad
+
+```
+The highest number of users that clicked on the ads from a country is 7 from the countries: Turkey, Ethiopia, Australia. For Ethiopia, all users that visited the site clicked on the ads.
+```{r}
+# ad clicked per city
+city_ads <- table(temporary$city, temporary$clicked.on.ad)
+names(dimnames(city_ads)) <- c("City", "Clicked on Ad")
+city_ads
+```
+Most cities have at least 1 or 0 clicks on ads. Only a few cities such as Lake David, Lake James, Lisamouth have 2 clicks on ads. 
+
+
+## Relationship btn Age and Time spent on site
+``` {r}
+library(ggplot2)
+ggplot(data=temporary,aes(y=daily.time.spent.on.site, x= age, color=clicked.on.ad))+geom_point()+facet_grid(~clicked.on.ad)
+##there is no relationship between age and time spent on site
+
+```
+
+``` {r}
+library(ggplot2)
+
+ggplot(data=temporary,aes(y=daily.time.spent.on.site, x= area.income,color=clicked.on.ad))+geom_point()+facet_grid(~clicked.on.ad)
+
+##individuals who had an income of 6000 and above spent more time on the site
+```
+``` {r}
+# computing a correlation matrix between all numerical variables using person method
+## obtaining numerical columns
+numeric_columns <- unlist(lapply(temporary, is.numeric))
+
+numeric_columns
+## I will put the numerical columns in a dataframe
+
+columns_numeric <- temporary[ , numeric_columns]
+
+head(columns_numeric)
+
+
+correlations <- cor(columns_numeric, method = "pearson")
+
+round(correlations, 2)
+
+```
+
+## Observations
+1. daily time_spent_on_site has a strong negative correlations of -0.75 with click.on.add
+2. age has a pretty strong correaltion of 0.49 to the click on add  but yield predictions that are too small to be useful 
+3. daily internet usage has a strong negative correlation with click on add of -0.79
+4. area.income has a negative correlation of -.48 to the click on ads
+
+# corplot for correlations
+
+``` {r}
+
+library('corrplot')
+corrplot(correlations, type = "lower", order = "hclust",tl.col = "black", tl.srt = 40)
+```
+
+
+``` {r}
+library(ggplot2)
+
+ggplot(data=ad_df,aes(y=age, x= area.income,color=male))+geom_point()+facet_grid(~clicked.on.ad)
+
+##individuals aged from 20-45 had the highest income so targetting them would increase the probability of clicking an add
+```
+
+
+## Conclusions 
+1. Client should focus on people aged 20-45 as they had the highest income
+2. Client to focus on individuals who spent more time on her site as there was correlation
+3. Client should also focus on people who had a higher daily internet usage as they were likely to click on her ads
+The results obtained from the EDA process will be used to make conclusions: 
+
+- The dataset was already slightly biased on the gender. There were more women than men visiting the site hence it more females than males clicked on the ads. 
+
+- Users who spent less time online were more likely to click on the ad than people who spent more time. As observed, these users also have a low daily internet usage. 
+
+- People with lower area incomes clicked more on the ad than people with higher area incomes.
+
+- The month of February and the 3rd days of the month were prime times for ad clicking. For the 31st days and the month of July, not so much.
+
+- Prime times for ad clicking is at 9am in the morning but this gets lower as it gets to 10am which registered low number of ad clicks. 
+# 10. Recommendations
+The target audience for the enterpreneur is:
+
+- Users with low income
+
+- Users who spend low on daily internet
+
+The target time for advertising the course and displaying ads is at 9am.
+
+The entrepreneur can customize her ads in a way that she gets the attention of users visiting the site in the morning. She can also customize her ads to attract more users including those with a higher income. 
+
+She can customize her ads on the online cryptography course by reducing the price. It could be that few users are clicking on the ad because the course is highly priced. Low priced(affordable) products are relatively attractive to more users, which could mean more traffic to the site. 
+
+###Modelling
+
+``` {r}
+Because this is a classification problem of identifying whether a user will click on an ad or not
+head(temporary)
+```
+## K-Nearest Neighbours
+``` {r}
+# Randomizing the rows, creates a uniform distribution of 1000
+set.seed(1234)
+random <- runif(1000)
+random
+ad_random <- temporary[order(random),]
+# Selecting the first 6 rows from iris_random
+head(ad_random)
+
+##B4 normalizing, lets drop columns we dont need
+ad_random <- subset(ad_random, select = -c(5,6,7,8,10,11,12,13))
+head(ad_random)
+
+# Normalizing the numerical variables of the data set. Normalizing the numerical values is really effective for algorithms, 
+# as it provides a measure from 0 to 1 which corresponds to min value to the max value of the data column.
+# We define a normal function which will normalize the set of values according to its minimum value and maximum value.
+normal <- function(x) (
+  return( ((x - min(x)) /(max(x)-min(x))) )
+)
+normal(1:5)
+
+
+ad_new <- as.data.frame(lapply(ad_random[,1:4], normal))
+
+head(ad_new)
+
+summary(ad_new)
+
+
+
+```
+
+``` {r}
+# Lets now create test and train data sets
+head(ad_new)
+
+train <- ad_new[1:800,]
+head(train)
+
+test <- ad_new[801:1000,]
+head(test)
+
+train_sp_knn <- ad_random[1:800,5]
+head(train_sp_knn)
+
+test_sp_knn <- ad_random[801:1000,5]
+head(test_sp_knn)
+
+```
+
+``` {r}
+# Now we can use the K-NN algorithm. Lets call the "class" package which contains the K-NN algorithm.
+# We then have to provide 'k' value which is no. of nearest neighbours(NN) to look for 
+# in order to classify the test data point.
+# Lets build a model on it; cl is the class of the training data set and k is the no of neighbours to look for 
+# in order to classify it accordingly.
+
+library(class)    
+require(class)
+
+model <- knn(train= train,test=test, ,cl= train_sp_knn,k=13)
+
+table(factor(model))
+
+table(test_sp_knn,model)
+```
+
+```
+We have an accuracy score of 96.5% This is awesome!!!
+
+##Decision Trees
+
+
+``` {r}
+library(caTools)
+set.seed(123)
+# Fitting Decision Tree Classification to the Training set
+library(rpart)
+cl = rpart(clicked.on.ad ~ daily.time.spent.on.site + age + area.income + daily.internet.usage, data = ad_df)
+classifier<-ctree(clicked.on.ad ~ daily.time.spent.on.site + age + area.income + daily.internet.usage, data = ad_df)
+# Plotting the tree
+par("mar")
+par(mar=c(1,1,1,1))
+plot(cl)
+plot(classifier)
+
+text(cl)
+```
+
+Our decision tree has also done a good job by giving us trees that classify our data...Though the trees are crowded as our dataset is large thus decision trees is not suitable for this classification 
+
+##SVM
+
+```{r}
+# We first install the caret package. 
+library(caret)
+# Next we split the data into training set and testing set. 
+# Next we split the data into training set and testing set. 
+train <- createDataPartition(y = ad_random$clicked.on.ad, p= 0.7, list = FALSE)
+
+train_svm <- ad_random[train,]
+test_svm <- ad_random[-train,]
+```
+
+```R
+# We check the dimensions of out training dataframe and testing dataframe
+# ---
+# 
+dim(train_svm)
+dim(test_svm)
+```
+```R
+# We then clean the data using the anyNA() method that checks for any null values.
+# ---
+#  
+anyNA(ad_random)
+```
+
+```R
+# Then check the summary of our data by using the summary() function
+# ---
+#  
+summary(ad_random)
+```
+```{r}
+# Before we train our model we will need to control all the computational overheads. 
+# We will implement this through the trainControl() method. 
+# This will allow us to use the train() function provided by the caret package. 
+# ---
+# The trainControl method will take three parameters:
+# a) The “method” parameter defines the resampling method, 
+# in this demo we’ll be using the repeatedcv or the repeated cross-validation method.
+# b) The next parameter is the “number”, this basically holds the number of resampling iterations.
+# c) The “repeats ” parameter contains the sets to compute for our repeated cross-validation. 
+# We are using setting number =10 and repeats =3
+# ---
+# 
+library(e1071)
+trctrl <- trainControl(method = "repeatedcv", number = 10, repeats = 3)
+
+svm_Linear <- train(clicked.on.ad ~ daily.time.spent.on.site + age + area.income + daily.internet.usage, data = train_svm, method = "svmLinear",trControl=trctrl,preProcess = c("center", "scale"),tuneLength = 10)
+```
+
+
+```R
+# We can then check the reult of our train() model as shown below
+# ---
+# 
+svm_Linear
+```
+
+
+```R
+# We can use the predict() method for predicting results as shown below. 
+# We pass 2 arguements, our trained model and our testing data frame.
+# ---
+# 
+test_pred <- predict(svm_Linear, newdata = test_svm)
+test_pred
+```
+```{r}
+# Now checking for our accuracy of our model by using a confusion matrix 
+# ---
+# 
+library(caret)
+confusionMatrix(table(test_pred, test_svm$clicked.on.ad))
+```
+## our SVM model has perfomed well with an accuracy score of 96.33..THis is awesome though KNN has perfomed better than it
+
+
+## Naive Bayes Classifier
+
+``` {r}
+# We will now install and load the required packages
+# ---
+#  
+#install.packages('tidyverse')
+library(tidyverse)
+
+#install.packages('ggplot2')
+library(ggplot2)
+
+#install.packages('caret')
+library(caret)
+
+#install.packages('caretEnsemble')
+library(caretEnsemble)
+
+#install.packages('psych')
+library(psych)
+
+#install.packages('Amelia')
+library(Amelia)
+
+#install.packages('mice')
+library(mice)
+
+#install.packages('GGally')
+library(GGally)
+
+#install.packages('rpart')
+library(rpart)
+
+#install.packages('randomForest')
+library(randomForest)
+```
+
+
+
+```{r}
+# Splitting data into training and test data sets
+# ---
+# 
+Train1 <- createDataPartition(y = ad_random$clicked.on.ad,p = 0.7,list = FALSE)
+train_naive <- data[Train1,]
+test_naive <- data[-Train1,]
+```
+
+```{r}
+# Comparing the outcome of the training and testing phase
+# ---
+# Creating objects x which holds the predictor variables and y which holds the response variables
+# ---
+#
+x = ad_random[,-5]
+y =  ad_random$clicked.on.ad
+```
+
+```{r}
+##building  model 
+# ---
+# 
+library(e1071)
+
+model = train(x,y,'nb',trControl=trainControl(method='cv',number=10))
+```
+
+```{r}
+#  Evalution of Model
+# ---
+# Predicting our testing set
+library(klaR)
+# 
+Predict <- predict(model,newdata = ad_random)
+
+# Getting the confusion matrix to see accuracy value and other parameter values
+# ---
+# 
+confusionMatrix(Predict, ad_random$clicked.on.ad)
+```
+### Naive Bayes Model was our best perfoming model with an accuracy score of 96.7%%%
+
+##Follow Up Questions
+1. We had the right data as our classification models had very high accuracy scores
+2. Though the data was somewhat imbalanced, maybe dealing with the imbalanced data can help our models in predicton
